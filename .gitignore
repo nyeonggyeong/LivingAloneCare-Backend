@@ -1,0 +1,4 @@
+node_modules/
+*.local
+# Service account key (Security)
+serviceAccountKey.json
