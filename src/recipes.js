@@ -78,3 +78,33 @@ const recommendRecipes = functions.https.onCall(async (data, context) => {
         recommendations: recommendations.slice(0, 10)
     };
 });
+
+//
+// [함수 2] 유튜브 영상 검색
+//
+const searchRecipeVideos = functions.https.onCall(async (data, context) => {
+    // 사용자 인증 확인
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', '인증된 사용자만 접근할 수 있습니다.');
+    }
+
+    // Flutter 앱으로부터 레시피 이름 받기
+    const recipeName = data.recipeName;
+    if (!recipeName) {
+        throw new functions.https.HttpsError('invalid-argument', 'Recipe name is required.');
+    }
+
+    // 유튜브 검색 결과 페이지 URL 생성
+    const youtubeSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(recipeName + ' 레시피')}`;
+
+    // Flutter 앱으로 URL만 반환
+    return {
+        status: "success",
+        youtubeSearchUrl: youtubeSearchUrl
+    };
+});
+
+module.exports = {
+    recommendRecipes,
+    searchRecipeVideos
+};
