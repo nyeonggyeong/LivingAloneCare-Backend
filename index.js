@@ -4,6 +4,8 @@ const functions = require('firebase-functions');
 admin.initializeApp();
 
 const recipes = require('./src/recipes');
+const alerts = require('./src/alerts');
 
 exports.recommendRecipes = recipes.recommendRecipes;
 exports.searchRecipeVideos = recipes.searchRecipeVideos;
+exports.scheduleExpiryCheck = alerts.scheduleExpiryCheck;
