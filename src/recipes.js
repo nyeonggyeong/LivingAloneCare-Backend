@@ -1,16 +1,22 @@
 const admin = require('firebase-admin');
-const functions = require('firebase-functions');
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { setGlobalOptions } = require("firebase-functions/v2");
+
+setGlobalOptions({ region: "asia-northeast3" });
+
+if (!admin.apps.length) {
+    admin.initializeApp();
+}
 
 const db = admin.firestore();
 
-
-// 재고 기반 레시피 추천
-const recommendRecipes = functions.https.onCall(async (data, context) => {
-    if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', '로그인이 필요한 서비스입니다.');
+// 1. 재고 기반 레시피 추천
+const recommendRecipes = onCall(async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', '로그인이 필요한 서비스입니다.');
     }
 
-    const userId = context.auth.uid;
+    const userId = request.auth.uid;
 
     try {
         // 내 냉장고 재료 가져오기
@@ -86,20 +92,20 @@ const recommendRecipes = functions.https.onCall(async (data, context) => {
 
     } catch (error) {
         console.error("에러 발생:", error);
-        throw new functions.https.HttpsError('internal', '서버 에러가 발생했습니다.', error);
+        throw new HttpsError('internal', '서버 에러가 발생했습니다.', error);
     }
 });
 
 
-// 유튜브 영상 검색
-const searchRecipeVideos = functions.https.onCall(async (data, context) => {
-    if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', '로그인이 필요합니다.');
+// 2. 유튜브 영상 검색
+const searchRecipeVideos = onCall(async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
     }
+    const recipeName = request.data.recipeName;
 
-    const recipeName = data.recipeName;
     if (!recipeName) {
-        throw new functions.https.HttpsError('invalid-argument', 'Recipe name is required.');
+        throw new HttpsError('invalid-argument', 'Recipe name is required.');
     }
 
     const youtubeSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(recipeName + ' 레시피')}`;
