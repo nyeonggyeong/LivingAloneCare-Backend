@@ -13,6 +13,7 @@ const recommendRecipes = functions.https.onCall(async (data, context) => {
     const userId = context.auth.uid;
 
     try {
+        // 내 냉장고 재료 가져오기
         const userInventorySnapshot = await db.collection('users').doc(userId).collection('inventory').get();
 
         if (userInventorySnapshot.empty) {
@@ -23,45 +24,47 @@ const recommendRecipes = functions.https.onCall(async (data, context) => {
             };
         }
 
-        const userInventory = userInventorySnapshot.docs.map(doc => doc.data());
+        const myIngredients = userInventorySnapshot.docs.map(doc => {
+            const item = doc.data();
+            return (item.name || item.ingredientId || "").toString().trim();
+        }).filter(name => name.length > 0);
 
         const recipesSnapshot = await db.collection('recipes').get();
-        const allRecipes = recipesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-        const userInventoryMap = {};
-        userInventory.forEach(item => {
-            const qty = Number(item.quantity) || 0;
-            if (item.ingredientId) {
-                userInventoryMap[item.ingredientId] = { quantity: qty, unit: item.unit };
-            }
-        });
 
         let recommendations = [];
 
-        allRecipes.forEach(recipe => {
-            if (!recipe.requiredIngredients) return;
+        recipesSnapshot.forEach(doc => {
+            const recipe = doc.data();
+            const requiredIngredients = recipe.requiredIngredients || [];
 
-            const requiredCount = recipe.requiredIngredients.length;
+            if (requiredIngredients.length === 0) return;
+
             let matchedCount = 0;
             let missingIngredients = [];
 
-            recipe.requiredIngredients.forEach(required => {
-                const userStock = userInventoryMap[required.ingredientId];
-                const requiredQty = Number(required.quantity) || 0;
+            requiredIngredients.forEach(req => {
+                const reqName = (req.name || req.ingredientId || "").toString().trim();
 
-                if (userStock && userStock.quantity >= requiredQty) {
+                // 단순히 내 재료 리스트에 이름이 포함되어 있는지만 확인
+                const hasIngredient = myIngredients.some(myIng =>
+                    myIng.includes(reqName) || reqName.includes(myIng)
+                );
+
+                if (hasIngredient) {
                     matchedCount++;
                 } else {
-                    missingIngredients.push(required.name || required.ingredientId);
+                    missingIngredients.push(reqName);
                 }
             });
 
-            const matchingRate = requiredCount > 0 ? (matchedCount / requiredCount) * 100 : 0;
+            // 매칭률 계산
+            const matchingRate = (matchedCount / requiredIngredients.length) * 100;
 
+            // 재료가 하나라도 매칭되면(0% 초과) 추천 목록에 추가
             if (matchingRate > 0) {
                 recommendations.push({
                     name: recipe.name,
-                    recipeId: recipe.id,
+                    recipeId: doc.id,
                     matchingRate: parseFloat(matchingRate.toFixed(1)),
                     cookingTime: recipe.cookingTime,
                     difficulty: recipe.difficulty,
@@ -72,12 +75,13 @@ const recommendRecipes = functions.https.onCall(async (data, context) => {
             }
         });
 
+        // 매칭률 높은 순으로 정렬
         recommendations.sort((a, b) => b.matchingRate - a.matchingRate);
 
         return {
             status: "success",
             message: `총 ${recommendations.length}개의 추천 레시피를 찾았습니다.`,
-            recommendations: recommendations.slice(0, 10)
+            recommendations: recommendations.slice(0, 20) // 상위 20개만 반환
         };
 
     } catch (error) {
@@ -88,7 +92,6 @@ const recommendRecipes = functions.https.onCall(async (data, context) => {
 
 
 // 유튜브 영상 검색
-
 const searchRecipeVideos = functions.https.onCall(async (data, context) => {
     if (!context.auth) {
         throw new functions.https.HttpsError('unauthenticated', '로그인이 필요합니다.');
