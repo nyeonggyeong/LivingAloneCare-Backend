@@ -77,6 +77,8 @@ const recommendRecipes = onCall(async (request) => {
                     tags: recipe.tags,
                     imageUrl: recipe.imageUrl,
                     missingIngredients: missingIngredients,
+                    requiredIngredients: requiredIngredients,
+                    steps: recipe.steps
                 });
             }
         });
