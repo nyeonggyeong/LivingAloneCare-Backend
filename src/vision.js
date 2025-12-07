@@ -1,7 +1,15 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const vision = require('@google-cloud/vision');
+const { Translate } = require('@google-cloud/translate').v2;
 
-const client = new vision.ImageAnnotatorClient();
+const visionClient = new vision.ImageAnnotatorClient();
+const translateClient = new Translate();
+
+const IGNORED_LABELS = [
+    'food', 'fruit', 'vegetable', 'produce', 'ingredient', 'natural foods', 'whole food', 'local food', 'vegan nutrition', 'superfood', 'dish', 'cuisine',
+    'orange', 'yellow', 'red', 'green', 'blue', 'color', 'orange color',
+    'tableware', 'plate', 'dishware', 'recipe', 'serveware'
+];
 
 const analyzeImage = onCall(
     { region: "asia-northeast3" },
@@ -16,15 +24,45 @@ const analyzeImage = onCall(
 
         try {
             const buffer = Buffer.from(base64Image, 'base64');
-            const [result] = await client.labelDetection(buffer); // 라벨 감지 (사물 인식)
-
+            const [result] = await visionClient.labelDetection(buffer);
             const labels = result.labelAnnotations;
 
-            const descriptions = labels.map(label => label.description).slice(0, 5);
+            if (!labels || labels.length === 0) {
+                return { status: "success", items: [] };
+            }
+
+            // 2. 필터링 로직 (아주 잘 짜셨습니다!)
+            let bestLabel = "";
+
+            for (const label of labels) {
+                const text = label.description.toLowerCase();
+
+                if (!IGNORED_LABELS.includes(text) && label.score > 0.7) {
+                    bestLabel = label.description;
+                    break;
+                }
+            }
+
+            if (!bestLabel) {
+                bestLabel = labels[0].description;
+            }
+
+            console.log(`AI가 선택한 영어 단어: ${bestLabel}`);
+
+            let translatedText = bestLabel;
+
+            try {
+                const [translation] = await translateClient.translate(bestLabel, 'ko');
+                translatedText = translation;
+            } catch (transError) {
+                console.error("번역 실패:", transError);
+            }
+
+            console.log(`최종 결과: ${bestLabel} -> ${translatedText}`);
 
             return {
                 status: "success",
-                items: descriptions
+                items: [translatedText]
             };
 
         } catch (error) {
