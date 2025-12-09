@@ -11,13 +11,15 @@ const db = admin.firestore();
 const messaging = admin.messaging();
 
 const scheduleExpiryCheck = onSchedule({
-    schedule: "0 9 * * *",
+    schedule: "0 9 * * *", // 매일 오전 9시 실행
     timeZone: "Asia/Seoul",
     region: "us-central1",
 }, async (event) => {
     console.log("🔔 유통기한 알림 스케줄러 시작");
 
     const now = admin.firestore.Timestamp.now();
+
+    // 3일 뒤 날짜 계산
     const threeDaysLater = new Date();
     threeDaysLater.setDate(threeDaysLater.getDate() + 3);
     const expiryTimestamp = admin.firestore.Timestamp.fromDate(threeDaysLater);
@@ -54,6 +56,7 @@ const scheduleExpiryCheck = onSchedule({
                 if (userData && userData.fcmToken) {
                     const ingredientsList = Array.from(userAlerts[userId]).join(', ');
                     const count = userAlerts[userId].size;
+
                     const notificationTitle = "🚨 냉장고 재료 심폐소생술 필요!";
                     const notificationBody = `${ingredientsList} 등 ${count}개 재료의 유통기한이 3일 남았어요. 얼른 드세요!`;
 
@@ -61,6 +64,10 @@ const scheduleExpiryCheck = onSchedule({
                         notification: {
                             title: notificationTitle,
                             body: notificationBody,
+                        },
+                        data: {
+                            route: 'inventory',
+                            click_action: 'FLUTTER_NOTIFICATION_CLICK'
                         },
                         android: {
                             notification: {
@@ -81,6 +88,9 @@ const scheduleExpiryCheck = onSchedule({
                             title: notificationTitle,
                             body: notificationBody,
                             type: 'expiry',
+
+                            route: 'inventory',
+
                             isRead: false,
                             createdAt: now
                         });
